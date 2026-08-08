@@ -1,6 +1,6 @@
-from .unet_parts import *
-from .unet_parts_att_transformer import *
-from .unet_parts_att_multiscale import *
+from unet_parts import *
+from unet_parts_att_transformer import *
+from unet_parts_att_multiscale import *
 
 class UNet_Attention_Transformer_Multiscale(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear=True):
@@ -22,15 +22,19 @@ class UNet_Attention_Transformer_Multiscale(nn.Module):
         self.outc = OutConv(128, n_classes)
 
         '''位置编码'''
+        # 位置エンコーディング
         self.pos = PositionEmbeddingLearned(512 // factor)
 
         '''空间注意力机制'''
+        # 空間アテンション
         self.pam = PAM_Module(512)
 
         '''自注意力机制'''
+        # 自己注意機構
         self.sdpa = ScaledDotProductAttention(512)
 
         '''残差多尺度连接'''
+        # 残差多スケール接続
         self.fuse1 = MultiConv(768, 256)
         self.fuse2 = MultiConv(384, 128)
         self.fuse3 = MultiConv(192, 64)
