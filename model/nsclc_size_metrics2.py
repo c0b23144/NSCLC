@@ -418,12 +418,20 @@ print(f"\n重みをロードして、大・小別 × 各指標の評価グラフ
 
 # 5つの重みを重ねる評価・プロット（エラーバーなし・同色/線種違いルール適用）
 # 1. 指定された名前（small, large, mix, mix + small, mix + large）で重みパスを定義
+# weight_configs = {
+#     "small": '/workspace/checkpoints_small_epoch200/model_epoch_50.pth',
+#     "large": '/workspace/checkpoints_large_epoch250/model_epoch_250.pth',
+#     "mix": '/workspace/TransAttUnet/model/checkpoints/model_epoch_50.pth',
+#     "mix + small": '/workspace/checkpoints_small/model_epoch_20.pth',
+#     "mix + large": '/workspace/checkpoints_large/model_epoch_20.pth'
+# }
+
 weight_configs = {
-    "small": '/workspace/checkpoints_small_epoch200/model_epoch_50.pth',
-    "large": '/workspace/checkpoints_large_epoch250/model_epoch_250.pth',
-    "mix": '/workspace/TransAttUnet/model/checkpoints/model_epoch_50.pth',
-    "mix + small": '/workspace/checkpoints_small/model_epoch_20.pth',
-    "mix + large": '/workspace/checkpoints_large/model_epoch_20.pth'
+    "fold1_large": '/workspace/checkpoints_large_epoch250/model_epoch_250.pth',
+    "fold2_large": '/workspace/checkpoints_large_epoch250/model_epoch_250.pth',
+    "fold3_large": '/workspace/checkpoints_large_epoch250/model_epoch_250.pth',
+    "fold4_large": '/workspace/checkpoints_large_epoch250/model_epoch_250.pth',
+    "fold5_large": '/workspace/checkpoints_large_epoch250/model_epoch_250.pth',
 }
 
 # 指標リストとビンの定義
@@ -622,7 +630,7 @@ for metric_name in metrics_list:
     plt.legend(loc='upper right', fontsize=10, frameon=True, shadow=True, ncol=6)
     plt.grid(True, linestyle=":", alpha=0.5)
     plt.tight_layout()
-    
+   
     save_path_1 = f"/workspace/output/combined_evaluation/combined_models_final_overview_line_{metric_name}.eps"
     plt.savefig(save_path_1, dpi=200)
     plt.close()

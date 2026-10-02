@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import json
 from torch.utils.data import DataLoader, Dataset
 import nibabel as nib
 import numpy as np
@@ -15,6 +16,16 @@ from torchsummary import summary
 from TransAttUnet import UNet_Attention_Transformer_Multiscale
 from torch.optim.lr_scheduler import StepLR
 from sklearn.metrics import accuracy_score, jaccard_score, precision_score, recall_score
+
+# クラスの上の階層に共通関数として1つだけ定義する
+def fix_slice_axis(data):
+    shape = data.shape
+    min_axis = np.argmin(shape)
+    if min_axis == 0:     # (Slices, H, W) -> (H, W, Slices)
+        return data.transpose(1, 2, 0)
+    elif min_axis == 1:   # (H, Slices, W) -> (H, W, Slices)
+        return data.transpose(0, 2, 1)
+    return data           # すでに (H, W, Slices)
 
 class NSCLCNiftiDataset(Dataset):
     def __init__(self, pairs, target_size=(512, 512), is_train=False):
@@ -35,12 +46,7 @@ class NSCLCNiftiDataset(Dataset):
                 mask_path = pair['label']
                 mask_nii = nib.load(mask_path).get_fdata()
 
-                shape = mask_nii.shape
-                min_axis = np.argmin(shape)
-                if min_axis == 0:
-                    mask_nii = mask_nii.transpose(1, 2, 0)
-                elif min_axis == 1:
-                    mask_nii = mask_nii.transpose(0, 2, 1)
+                mask_nii = fix_slice_axis(mask_nii) # 呼び出すだけにスッキリ化
                 
                 # 全スライスの腫瘍面積計算
                 num_slices = mask_nii.shape[2]
@@ -73,13 +79,7 @@ class NSCLCNiftiDataset(Dataset):
                 mask_path = pair['label']
                 mask_nii = nib.load(mask_path).get_fdata()
 
-                # 軸の修正
-                shape = mask_nii.shape
-                min_axis = np.argmin(shape)
-                if min_axis == 0:
-                    mask_nii = mask_nii.transpose(1, 2, 0)
-                elif min_axis == 1:
-                    mask_nii = mask_nii.transpose(0, 2, 1)
+                mask_nii = fix_slice_axis(mask_nii) # 呼び出すだけにスッキリ化
                 
                 # 全スライスの腫瘍面積計算
                 num_slices = mask_nii.shape[2]
@@ -114,16 +114,6 @@ class NSCLCNiftiDataset(Dataset):
 
         img_nii = nib.load(img_path).get_fdata()
         mask_nii = nib.load(mask_path).get_fdata()
-
-        def fix_slice_axis(data):
-            shape = data.shape
-            # 3つの軸の中で、512より小さい（枚数と思われる）軸のインデックスを探す
-            min_axis = np.argmin(shape)
-            if min_axis == 0:   # (Slices, H, W) -> (H, W, Slices)
-                return data.transpose(1, 2, 0)
-            elif min_axis == 1: # (H, Slices, W) -> (H, W, Slices)
-                return data.transpose(0, 2, 1)
-            return data         # すでに (H, W, Slices)
 
         img_nii = fix_slice_axis(img_nii)
         mask_nii = fix_slice_axis(mask_nii)
@@ -173,126 +163,6 @@ class NSCLCNiftiDataset(Dataset):
 
         return img_tensor, mask_tensor, file_id, tumor_size_2d
 
-if __name__ == '__main__':
-    root_dir = '/workspace/NSCLC_NIfTI2'
-
-    images_dir = '/workspace/NSCLC_NIfTI2/imagesTr'
-    labels_dir = '/workspace/NSCLC_NIfTI2/labelsTr/Neoplasm_Primary'
-
-    # 全てのファイル名を取得
-    all_images = sorted([f for f in os.listdir(images_dir) if f.endswith('.nii.gz')])
-
-    # 画像とラベルのフルパスのペアをリストに
-    valid_pairs = []
-    for f in all_images:
-        img_path = os.path.join(images_dir, f)
-        lbl_path = os.path.join(labels_dir, f)
-
-        # ラベルが存在するか
-        if os.path.exists(lbl_path):
-            # ペアを辞書形式で保存
-            valid_pairs.append({
-                'image': img_path,
-                'label': lbl_path,
-                'name': f
-            })
-    print(f"有効なペア数: {len(valid_pairs)}")
-
-    # train 8  test 2で分割
-    train_pairs, test_pairs = train_test_split(valid_pairs, test_size=0.2, random_state=42)
-
-    print(f"--- データ分割完了 ---")
-
-    print(f"学習用ペア数: {len(train_pairs)}")
-    print(f"テスト用ペア数: {len(test_pairs)}")
-
-    # 確認：テスト用の1番目のデータが正しくペアになっているか
-    print(f"\n[確認] テスト用データの1番目:")
-    print(f"名前: {test_pairs[0]['name']}")
-    print(f"画像: {test_pairs[0]['image']}")
-    print(f"ラベル: {test_pairs[0]['label']}")
-
-    # Datasetのインスタンス化
-    train_dataset = NSCLCNiftiDataset(train_pairs, is_train=True)
-    test_dataset = NSCLCNiftiDataset(test_pairs, is_train=False)
-
-    print(f"\n--- Dataset作成完了 ---")
-    print(f"学習用: {len(train_dataset)}件, テスト用: {len(test_dataset)}件")
-
-    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
-
-    print(f"DataLoader準備完了")
-
-    # 動作確認
-    img, mask, name, size = train_dataset[0]
-    print(f"\n[動作確認成功]")
-    print(f"患者ID {name}")
-    print(f"画像の形: {img.shape}")
-    print(f"マスクの形: {mask.shape}")
-
-# trainとtestを腫瘍の大きさ(大, 小)で分ける
-# 測定用のデータセット
-train_measure_dataset = NSCLCNiftiDataset(train_pairs, is_train=True)
-test_measure_dataset = NSCLCNiftiDataset(test_pairs, is_train=False)
-
-# Datasetから計算済みのサイズだけ回収(最大面積の腫瘍とってるため)
-train_sizes = np.array([train_measure_dataset[i][3]for i in range(len(train_measure_dataset))])
-test_sizes = np.array([test_measure_dataset[i][3] for i in range(len(test_measure_dataset))])
-all_sizes = np.concatenate([train_sizes, test_sizes])
-
-# 閾値(中央値)の決定とヒストグラム
-threshold = np.median(all_sizes)
-
-plt.figure(figsize=(10, 5))
-plt.hist(train_sizes, bins=30, color='royalblue', alpha=0.6, label=f'Train Data (n={len(train_sizes)})', edgecolor='black')
-plt.hist(test_sizes, bins=30, color='orange', alpha=0.6, label=f'Test Data (n={len(test_sizes)})', edgecolor='black')
-plt.axvline(threshold, color='red', linestyle='dashed', linewidth=2, label=f'Threshold ({int(threshold)} px)')
-plt.title('Tumor Size Distribution (Direct from Dataset)', fontsize=14)
-plt.xlabel('Tumor Size (Pixels on Max Slice)')
-plt.ylabel('Number of Patients')
-plt.legend()
-plt.grid(axis='y', alpha=0.3)
-
-plt.savefig("checkpoints_large_epoch250/hist.png")
-print("保存しました。")
-
-print(f"割り出された閾値: {int(threshold)} ピクセル")
-
-# 3倍に拡張されているextended_pairsを直接使って、閾値で仕分ける
-train_extended_pairs_large = [p for p in train_measure_dataset.extended_pairs if p['tumor_size'] >= threshold]
-train_extended_pairs_small = [p for p in train_measure_dataset.extended_pairs if p['tumor_size'] < threshold]
-
-test_extended_pairs_large = [p for p in test_measure_dataset.extended_pairs if p['tumor_size'] >= threshold]
-test_extended_pairs_small = [p for p in test_measure_dataset.extended_pairs if p['tumor_size'] < threshold]
-
-# 仕分けたリストを使って、新しくDatasetを作る
-# trainはすでに拡張済みのリストを渡すため、これ以上増えないように is_train=False でインスタンス化
-train_ds_large = NSCLCNiftiDataset([], is_train=False)  # 空で初期化
-train_ds_large.extended_pairs = train_extended_pairs_large
-
-train_ds_small = NSCLCNiftiDataset([], is_train=False)
-train_ds_small.extended_pairs = train_extended_pairs_small
-
-test_ds_large = NSCLCNiftiDataset([], is_train=False)
-test_ds_large.extended_pairs = test_extended_pairs_large
-
-test_ds_small = NSCLCNiftiDataset([], is_train=False)
-test_ds_small.extended_pairs = test_extended_pairs_small
-
-
-# サイズ別DataLoaderの作成
-batch_size = 8
-train_loader_large = DataLoader(train_ds_large, batch_size=batch_size, shuffle=True)
-train_loader_small = DataLoader(train_ds_small, batch_size=batch_size, shuffle=True)
-test_loader_large = DataLoader(test_ds_large, batch_size=batch_size, shuffle=False)
-test_loader_small = DataLoader(test_ds_small, batch_size=batch_size, shuffle=False)
-
-
-# 拡張された後の正確な件数をプリント
-print(f"train_loader_large: {len(train_ds_large)}件 / test_loader_large: {len(test_ds_large)}件")
-print(f"train_loader_small: {len(train_ds_small)}件 / test_loader_small: {len(test_ds_small)}件")
-
 # BCEとDice Lossを混ぜる
 class MixLoss(nn.Module):
     def __init__(self, smooth=1e-6):
@@ -321,130 +191,192 @@ class MixLoss(nn.Module):
         total_loss = 0.5 * bce_loss + 0.5 * dice_loss
 
         return total_loss
+    
+if __name__ == '__main__':
+    num_epochs = 250
+    root_dir = '/workspace/NSCLC_NIfTI2'
 
-# 学習設定
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    images_dir = '/workspace/NSCLC_NIfTI2/imagesTr'
+    labels_dir = '/workspace/NSCLC_NIfTI2/labelsTr/Neoplasm_Primary'
 
-model = UNet_Attention_Transformer_Multiscale(n_channels=1, n_classes=1).to(device)
+    # 全てのファイル名を取得
+    all_images = sorted([f for f in os.listdir(images_dir) if f.endswith('.nii.gz')])
+
+    # 画像とラベルのフルパスのペアをリストに
+    valid_pairs = []
+    for f in all_images:
+        img_path = os.path.join(images_dir, f)
+        lbl_path = os.path.join(labels_dir, f)
+
+        # ラベルが存在するか
+        if os.path.exists(lbl_path):
+            # ペアを辞書形式で保存
+            valid_pairs.append({
+                'image': img_path,
+                'label': lbl_path,
+                'name': f
+            })
+    print(f"有効なペア数: {len(valid_pairs)}")
+
+    valid_pairs = np.array(valid_pairs)
+
+    # K分割
+    k_folds = 5
+    kf = KFold(n_splits=k_folds, shuffle=True, random_state=42)
+
+    fold_splits = {}
+
+    for fold_idx, (train_idx, val_idx) in enumerate(kf.split(valid_pairs)):
+        fold_key = f"fold_{fold_idx + 1}"
+        
+        # valid_pairs[i]['image'] と valid_pairs[i]['label'] を取得
+        fold_splits[fold_key] = {
+            "train_images": [valid_pairs[i]['image'] for i in train_idx],
+            "train_masks": [valid_pairs[i]['label'] for i in train_idx],
+            "val_images": [valid_pairs[i]['image'] for i in val_idx],
+            "val_masks": [valid_pairs[i]['label'] for i in val_idx],
+        }
+
+    # JSONファイルに保存
+    with open("dataset_splits.json", "w") as f:
+        json.dump(fold_splits, f, indent=4)
+
+    print("分割情報を 'dataset_splits.json' に保存しました。")
+
+    print(f"--- {k_folds}分割交差検証を開始します ---")
+
+
+
+    # ここから
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    for fold, (train_idx, val_idx) in enumerate(kf.split(valid_pairs)):
+        print(f"\n========== Fold {fold + 1}/{k_folds} ==========")
+
+        #  該当するFoldのインデックスを使って、Train/Valペアを切り出す
+        train_pairs_fold = valid_pairs[train_idx].tolist()
+        val_pairs_fold = valid_pairs[val_idx].tolist()
+
+        # このFold専用のデータセットを作成し、閾値（中央値）を計算
+        train_measure_ds = NSCLCNiftiDataset(train_pairs_fold, is_train=True)
+        val_measure_ds = NSCLCNiftiDataset(val_pairs_fold, is_train=False)
+
+        train_sizes = np.array([train_measure_ds[i][3] for i in range(len(train_measure_ds))])
+        val_sizes = np.array([val_measure_ds[i][3] for i in range(len(val_measure_ds))])
+        all_sizes = np.concatenate([train_sizes, val_sizes])
+        threshold = np.median(all_sizes)
+
+        # 閾値を使って Large データを仕分け、DataLoaderを作成
+        train_pairs_large = [p for p in train_measure_ds.extended_pairs if p['tumor_size'] >= threshold]
+        val_pairs_large = [p for p in val_measure_ds.extended_pairs if p['tumor_size'] >= threshold]
+
+        train_ds_large = NSCLCNiftiDataset([], is_train=False)
+        train_ds_large.extended_pairs = train_pairs_large
+
+        val_ds_large = NSCLCNiftiDataset([], is_train=False)
+        val_ds_large.extended_pairs = val_pairs_large
+
+        batch_size = 8
+        train_loader_large = DataLoader(train_ds_large, batch_size=batch_size, shuffle=True)
+        val_loader_large = DataLoader(val_ds_large, batch_size=batch_size, shuffle=False)
+
+        # 最も重要：Foldごとに「新品のモデル」と「オプティマイザ」を用意する
+        model = UNet_Attention_Transformer_Multiscale(n_channels=1, n_classes=1).to(device)
+        optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9, weight_decay=1e-4)
+        criterion = MixLoss()
+
+        # 保存先フォルダ名を Fold ごとに動的変更
+        save_dir = f"checkpoints_large_fold{fold+1}"
+        os.makedirs(save_dir, exist_ok=True)
+
+        # Foldごとの学習・検証ループ（修正箇所2の `for fold, ...:` の中に配置）
+        train_loss_history = []
+        val_loss_history = []
+        # 勾配蓄積
+        accumulation_steps = 3
+
+        try:
+            for epoch in range(num_epochs):
+                model.train()
+                train_loss = 0.0
+                optimizer.zero_grad()
+
+                for i, (images, masks, file_ids, sizes) in enumerate(train_loader_large):
+                    images, masks = images.to(device), masks.to(device)
+                    outputs = model(images)
+                    loss = criterion(outputs, masks)
+
+                    loss_scaled = loss / accumulation_steps
+                    loss_scaled.backward()
+
+                    if (i + 1) % accumulation_steps == 0 or (i + 1) == len(train_loader_large):
+                        optimizer.step()
+                        optimizer.zero_grad()
+
+                    train_loss += loss.item()
+
+                avg_train_loss = train_loss / len(train_loader_large)
+
+                # 検証（変数名を val_loader_large に変更）
+                model.eval()
+                val_loss = 0.0
+                with torch.no_grad():
+                    for images, masks, file_ids, sizes in val_loader_large:
+                        images, masks = images.to(device), masks.to(device)
+                        outputs = model(images)
+                        v_loss = criterion(outputs, masks)
+                        val_loss += v_loss.item()
+
+                avg_val_loss = val_loss / len(val_loader_large)
+
+                train_loss_history.append(avg_train_loss)
+                val_loss_history.append(avg_val_loss)
+
+                if (epoch + 1) % 10 == 0:
+                    print(f"Fold {fold+1} | Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+                    # 修正箇所2で定義した save_dir（Foldごとのフォルダ）にモデルを保存
+                    save_path = os.path.join(save_dir, f"model_epoch_{epoch+1}.pth")
+                    torch.save(model.state_dict(), save_path)
+
+            # グラフも Fold ごとのフォルダ内に保存
+            plt.figure(figsize=(10, 5))
+            plt.plot(train_loss_history, label='Train Loss')
+            plt.plot(val_loss_history, label='Val Loss')
+            plt.title(f'Fold {fold+1} Loss History')
+            plt.xlabel('Epochs')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.grid(True)
+            plt.savefig(os.path.join(save_dir, "loss_history.png"))
+            plt.close()
+        # for epoch ループの直後に except を追加する
+        except KeyboardInterrupt:
+            print(f"\n[中断] Fold {fold+1} の学習が手動で停止されました。")
+            print(f"Fold {fold+1} の中断時点の状態を保存します...")
+            
+            # 中断時点のモデル重みを保存
+            interrupted_model_path = os.path.join(save_dir, "model_interrupted.pth")
+            torch.save(model.state_dict(), interrupted_model_path)
+
+            # 中断時点までのグラフを保存
+            if len(train_loss_history) > 0:
+                plt.figure(figsize=(10, 5))
+                plt.plot(train_loss_history, label='Train Loss')
+                plt.plot(val_loss_history, label='Val Loss')
+                plt.title(f'Fold {fold+1} Loss History (Interrupted at Epoch {len(train_loss_history)})')
+                plt.xlabel('Epochs')
+                plt.ylabel('Loss')
+                plt.legend()
+                plt.grid(True)
+                plt.savefig(os.path.join(save_dir, "loss_history_interrupted.png"))
+                plt.close()
 
 # 重みロード
 #model.load_state_dict(torch.load('/workspace/checkpoints_small_epoch200/model_epoch_200.pth')) # 保存されたファイル名
 
 #最適化アルゴリズム 1e-4
-optimizer = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9, weight_decay=1e-4)
+
 # 30エポックごとに学習率を0.1倍に
 # scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
 # 損失関数
-criterion = MixLoss()
-
-batch_size = 8
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-# small_epochは50回追加学習してるから気を付ける
-num_epochs = 250
-
-train_loss_history = []
-val_loss_history = []
-
-print("学習を開始...")
-# 勾配蓄積回数
-accumulation_steps = 3
-
-try:
-    # small largeを変えるときに、画像を保存するときの場所も変える（loss, hist）
-    for epoch in range(num_epochs):
-        # 学習
-        model.train()
-        train_loss = 0.0
-
-        # 蓄積を開始する前に勾配リセット
-        optimizer.zero_grad()
-
-        for i, (images, masks, file_ids, sizes) in enumerate(train_loader_large):
-            images, masks = images.to(device), masks.to(device)
-
-            # 予測と計算
-            outputs = model(images)
-            loss = criterion(outputs, masks)
-
-            # Lossを蓄積回数で割る
-            loss_scaled = loss / accumulation_steps
-
-            # 勾配の計算
-            loss_scaled.backward()
-            
-            # 重みの更新
-            if (i + 1) % accumulation_steps == 0 or (i + 1) == len(train_loader_large):
-                optimizer.step()
-                optimizer.zero_grad()
-
-            train_loss += loss.item()
-
-        avg_train_loss = train_loss / len(train_loader_large)
-
-        # 検証(テストデータでの評価)
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for images, masks, file_ids, sizes in test_loader_large:
-                images, masks = images.to(device), masks.to(device)
-                outputs = model(images)
-                v_loss = criterion(outputs, masks)
-                val_loss += v_loss.item()
-
-        avg_val_loss = val_loss / len(test_loader_large)
-
-        train_loss_history.append(avg_train_loss)
-        val_loss_history.append(avg_val_loss)
-
-        # 進捗を表示
-        print(f"Epoch [{epoch+1}/{num_epochs}] Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
-
-        # モデルの保存
-        save_dir = "checkpoints_large_epoch250"
-        os.makedirs(save_dir, exist_ok=True)
-
-        # 10エポックごとに重みを保存
-        if (epoch + 1) % 10 == 0:
-            save_path = os.path.join(save_dir, f"model_epoch_{epoch+1}.pth")
-            torch.save(model.state_dict(), save_path)
-            print(f"--- モデルを保存しました: {save_path}")
-
-        # 【おまけ】毎エポックごとに上書き保存しておけば、いつ止めても最新のグラフが見られます
-        if (epoch + 1) % 1 == 0:
-            plt.figure(figsize=(10, 5))
-            plt.plot(train_loss_history, label='Train Loss')
-            plt.plot(val_loss_history, label='Val Loss')
-            plt.title('Training and Validation Loss (Live)')
-            plt.xlabel('Epochs')
-            plt.ylabel('Loss')
-            plt.legend()
-            plt.grid(True)
-            plt.savefig("checkpoints_large_epoch250/loss_history.png")
-            plt.close() # メモリリーク防止のために必ず閉じる
-
-except KeyboardInterrupt:
-    print("\n[中断] 学習が途中で停止されました。")
-
-finally:
-    # 正常終了時、またはCtrl+Cでの中断時、どちらでも必ずここが実行されます
-    if len(train_loss_history) > 0:
-        print("これまでの学習曲線をグラフに保存しています...")
-        plt.figure(figsize=(10, 5))
-        plt.plot(train_loss_history, label='Train Loss')
-        plt.plot(val_loss_history, label='Val Loss')
-        plt.title('Training and Validation Loss (Final/Interrupted)')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.grid(True)
-
-        os.makedirs("checkpoints_large_epoch250", exist_ok=True)
-        plt.savefig("checkpoints_large_epoch250/loss_history.png")
-        plt.close()
-        print("学習曲線のグラフを保存しました。")
-    else:
-        print("1エポックも完了していないため、グラフは生成されませんでした。")
 
 print("すべての処理が終了しました。")
