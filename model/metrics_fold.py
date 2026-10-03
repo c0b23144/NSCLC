@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -10,6 +11,9 @@ from sklearn.metrics import accuracy_score, jaccard_score, precision_score, reca
 from TransAttUnet import UNet_Attention_Transformer_Multiscale
 
 
+# ============================================================
+# Dataset
+# ============================================================
 class NSCLCNiftiDataset(torch.utils.data.Dataset):
     def __init__(self, pairs, target_size=(512, 512), is_train=False):
         self.pairs = pairs
@@ -88,6 +92,9 @@ class NSCLCNiftiDataset(torch.utils.data.Dataset):
         return img_tensor, mask_tensor, pair['name'], tumor_size
 
 
+# ============================================================
+# Utility
+# ============================================================
 def build_valid_pairs(images_dir, labels_dir):
     all_images = sorted([f for f in os.listdir(images_dir) if f.endswith('.nii.gz')])
     valid_pairs = []
@@ -99,38 +106,34 @@ def build_valid_pairs(images_dir, labels_dir):
     return valid_pairs
 
 
-def compute_metric_dict(preds, masks):
-    # バッチ内の「1件ごと」のスコアをリストで返すように修正
-    metrics = {'DICE': [], 'IoU': [], 'ACC': [], 'REC': [], 'PRE': []}
+def compute_single_sample_metrics(pred, target):
+    p = pred.cpu().numpy().flatten()
+    t = target.numpy().flatten()
 
-    for p, t in zip(preds, masks):
-        p = p.cpu().numpy().flatten()
-        t = t.numpy().flatten()
+    p_score = precision_score(t, p, zero_division=0)
+    r_score = recall_score(t, p, zero_division=0)
+    i_score = jaccard_score(t, p, zero_division=0)
+    a_score = accuracy_score(t, p)
 
-        p_score = precision_score(t, p, zero_division=0)
-        r_score = recall_score(t, p, zero_division=0)
-        i_score = jaccard_score(t, p, zero_division=0)
-        a_score = accuracy_score(t, p)
+    if np.sum(t) == 0 and np.sum(p) == 0:
+        d_score = 1.0
+        i_score = 1.0
+    else:
+        d_score = (2 * i_score) / (i_score + 1) if i_score > 0 else 0.0
 
-        if np.sum(t) == 0 and np.sum(p) == 0:
-            d_score = 1.0
-            i_score = 1.0
-        else:
-            d_score = (2 * i_score) / (i_score + 1) if i_score > 0 else 0.0
-
-        metrics['DICE'].append(d_score)
-        metrics['IoU'].append(i_score)
-        metrics['ACC'].append(a_score)
-        metrics['REC'].append(r_score)
-        metrics['PRE'].append(p_score)
-
-    return metrics  # Meanをとらず、各サンプルのリストをそのまま返す
+    return {
+        'DICE': d_score,
+        'IoU': i_score,
+        'ACC': a_score,
+        'REC': r_score,
+        'PRE': p_score,
+    }
 
 
-def evaluate_model(model, loader, device):
+def evaluate_fold(model, loader, device):
     model.eval()
     sizes = []
-    metrics = {m: [] for m in ['DICE', 'IoU', 'ACC', 'REC', 'PRE']}
+    metric_store = {k: [] for k in ['DICE', 'IoU', 'ACC', 'REC', 'PRE']}
 
     with torch.no_grad():
         for images, masks, _, tumor_sizes in loader:
@@ -138,38 +141,41 @@ def evaluate_model(model, loader, device):
             outputs = model(images)
             preds = (torch.sigmoid(outputs) > 0.5).float()
 
-            batch_metrics = compute_metric_dict(preds, masks)
-            for key in metrics:
-                # extend を使ってサンプル単位のスコアを平坦に追加（計211要素になる）
-                metrics[key].extend(batch_metrics[key])
+            for j in range(images.size(0)):
+                sizes.append(int(tumor_sizes[j].item()))
+                sample_metrics = compute_single_sample_metrics(preds[j], masks[j])
+                for key in metric_store:
+                    metric_store[key].append(sample_metrics[key])
 
-            sizes.extend([int(s) for s in tumor_sizes])
-
-    return np.array(sizes), {k: np.array(v) for k, v in metrics.items()}
+    return np.array(sizes), {k: np.array(v) for k, v in metric_store.items()}
 
 
+def compute_bin_mean(size_arr, score_arr, bin_edges):
+    means = []
+    for j in range(len(bin_edges) - 1):
+        low, high = bin_edges[j], bin_edges[j + 1]
+        if j == len(bin_edges) - 2:
+            mask = (size_arr >= low) & (size_arr <= high)
+        else:
+            mask = (size_arr >= low) & (size_arr < high)
+
+        if np.any(mask):
+            means.append(np.mean(score_arr[mask]))
+        else:
+            means.append(np.nan)
+    return np.array(means)
+
+
+# ============================================================
+# Main
+# ============================================================
 if __name__ == '__main__':
     images_dir = '/workspace/NSCLC_NIfTI2/imagesTr'
     labels_dir = '/workspace/NSCLC_NIfTI2/labelsTr/Neoplasm_Primary'
 
-    valid_pairs = build_valid_pairs(images_dir, labels_dir)
-    test_dataset = NSCLCNiftiDataset(valid_pairs, is_train=False)
-    test_sizes = np.array([test_dataset[i][3] for i in range(len(test_dataset))])
-
-    # large model の閾値で抽出
-    threshold = np.median(test_sizes)
-    test_large_pairs = [p for p in test_dataset.extended_pairs if p['tumor_size'] >= threshold]
-    test_large_ds = NSCLCNiftiDataset([], is_train=False)
-    test_large_ds.extended_pairs = test_large_pairs
-    test_loader_large = DataLoader(test_large_ds, batch_size=8, shuffle=False)
-
-    fold_weight_configs = {
-        'Fold 1': '/workspace/checkpoints_large_fold1/model_epoch_250.pth',
-        'Fold 2': '/workspace/checkpoints_large_fold2/model_epoch_250.pth',
-        'Fold 3': '/workspace/checkpoints_large_fold3/model_epoch_250.pth',
-        'Fold 4': '/workspace/checkpoints_large_fold4/model_epoch_250.pth',
-        'Fold 5': '/workspace/checkpoints_large_fold5/model_epoch_250.pth',
-    }
+    # Load split info
+    with open("dataset_splits.json", "r") as f:
+        fold_splits = json.load(f)
 
     output_dir = '/workspace/output/fold_large_comparison'
     os.makedirs(output_dir, exist_ok=True)
@@ -180,50 +186,78 @@ if __name__ == '__main__':
     metrics_list = ['DICE', 'IoU', 'ACC', 'REC', 'PRE']
     fold_results = {}
 
-    for fold_name, weight_path in fold_weight_configs.items():
+    fold_weight_configs = {
+        'Fold 1': '/workspace/checkpoints_large_fold1/model_epoch_250.pth',
+        'Fold 2': '/workspace/checkpoints_large_fold2/model_epoch_250.pth',
+        'Fold 3': '/workspace/checkpoints_large_fold3/model_epoch_250.pth',
+        'Fold 4': '/workspace/checkpoints_large_fold4/model_epoch_250.pth',
+        'Fold 5': '/workspace/checkpoints_large_fold5/model_epoch_250.pth',
+    }
+
+    # Evaluate each fold with its own validation split
+    for fold_idx in range(1, 6):
+        fold_name = f'Fold {fold_idx}'
+        fold_key = f'fold_{fold_idx}'
+        weight_path = fold_weight_configs[fold_name]
+
         if not os.path.exists(weight_path):
             print(f'[Warning] {fold_name} weight not found: {weight_path}')
             continue
 
+        # Get validation pairs for this fold
+        val_image_names = fold_splits[fold_key]['val']
+        val_pairs = []
+        for img_name in val_image_names:
+            img_path = os.path.join(images_dir, img_name)
+            label_path = os.path.join(labels_dir, img_name)
+            if os.path.exists(img_path) and os.path.exists(label_path):
+                val_pairs.append({'image': img_path, 'label': label_path, 'name': img_name})
+
+        if len(val_pairs) == 0:
+            print(f'[Warning] No validation pairs found for {fold_name}')
+            continue
+
+        # Create dataset and filter for large tumors
+        val_dataset = NSCLCNiftiDataset(val_pairs, is_train=False)
+        val_sizes = np.array([val_dataset[i][3] for i in range(len(val_dataset))])
+        threshold = np.median(val_sizes)
+
+        large_pairs = [p for p in val_dataset.extended_pairs if p['tumor_size'] >= threshold]
+        large_ds = NSCLCNiftiDataset([], is_train=False)
+        large_ds.extended_pairs = large_pairs
+        val_loader = DataLoader(large_ds, batch_size=8, shuffle=False)
+
+        # Load model and evaluate
         model.load_state_dict(torch.load(weight_path, map_location=device))
-        sizes, scores = evaluate_model(model, test_loader_large, device)
-        fold_results[fold_name] = {'sizes': sizes, 'scores': scores}
+        sizes, scores = evaluate_fold(model, val_loader, device)
+
+        fold_results[fold_name] = {
+            'sizes': sizes,
+            'scores': scores
+        }
 
         print(f'\n{fold_name}')
         for metric_name in metrics_list:
             print(f'  {metric_name}: {np.mean(scores[metric_name]):.4f}')
 
     if not fold_results:
-        raise FileNotFoundError('No valid large-model fold weights were found.')
+        raise FileNotFoundError('No valid weights or data found.')
 
+    # Generate plots
     all_sizes = np.concatenate([v['sizes'] for v in fold_results.values()])
     bin_edges = np.linspace(all_sizes.min(), all_sizes.max(), 31)
+    bin_labels = [f'{int(bin_edges[i])}-{int(bin_edges[i + 1])}' for i in range(len(bin_edges) - 1)]
 
     for metric_name in metrics_list:
         plt.figure(figsize=(12, 7))
 
-        for fold_name in fold_results:
-            sizes = fold_results[fold_name]['sizes']
-            scores = fold_results[fold_name]['scores'][metric_name]
+        for fold_name, info in fold_results.items():
+            sizes = info['sizes']
+            scores = info['scores'][metric_name]
+            means = compute_bin_mean(sizes, scores, bin_edges)
+            plt.plot(np.arange(len(means)), means, marker='o', linewidth=2, label=fold_name)
 
-            mean_vals = []
-            for j in range(len(bin_edges) - 1):
-                low, high = bin_edges[j], bin_edges[j + 1]
-                if j == len(bin_edges) - 2:
-                    mask = (sizes >= low) & (sizes <= high)
-                else:
-                    mask = (sizes >= low) & (sizes < high)
-
-                if np.any(mask):
-                    mean_vals.append(np.mean(scores[mask]))
-                else:
-                    mean_vals.append(np.nan)
-
-            x = np.arange(len(mean_vals))
-            plt.plot(x, mean_vals, marker='o', linewidth=2, label=fold_name)
-
-        tick_labels = [f'{int(bin_edges[i])}-{int(bin_edges[i + 1])}' for i in range(len(bin_edges) - 1)]
-        plt.xticks(np.arange(len(tick_labels)), tick_labels, rotation=45)
+        plt.xticks(np.arange(len(bin_labels)), bin_labels, rotation=45)
         plt.xlabel('Tumor Size (Pixels on Max Slice)')
         plt.ylabel(f'Mean {metric_name} Score')
         plt.title(f'Large Model Fold Comparison: {metric_name}')
@@ -238,3 +272,4 @@ if __name__ == '__main__':
         print(f'Saved: {save_path}')
 
     print('\nDone.')
+    print(f'Output dir: {output_dir}')
