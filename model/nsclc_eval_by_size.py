@@ -20,9 +20,9 @@ from nsclc_train_by_size import (
 # =========================================================
 # 評価する3つのpth (自分のパスに合わせて書き換える)
 WEIGHTS = {
-    '35-919px':     'checkpoints_by_size/35-919px/model_epoch_250.pth',
-    '919-1804px':   'checkpoints_by_size/919-1804px/model_epoch_250.pth',
-    '1804-10652px': 'checkpoints_by_size/1804-10652px_finetune/model_epoch_250.pth',
+    '35-919px':     'checkpoints_by_size/35-919px/best_model.pth',
+    '919-1804px':   'checkpoints_by_size/919-1804px/best_model.pth',
+    '1804-10652px': 'checkpoints_by_size/1804-10652px_finetune/best_model.pth',
 }
 
 OUTPUT_DIR = 'output/size_metrics'
