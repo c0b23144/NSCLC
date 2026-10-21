@@ -22,10 +22,10 @@ from nsclc_train_by_size import (
 WEIGHTS = {
     '35-919px':     'checkpoints_by_size/35-919px/best_model.pth',
     '919-1804px':   'checkpoints_by_size/919-1804px/best_model.pth',
-    '1804-10652px': 'checkpoints_by_size/1804-10652px_finetune/best_model.pth',
+    '1804-10652px': 'checkpoints_by_size_rawct/1804-10652px/best_model.pth',
 }
 
-OUTPUT_DIR = 'output/size_metrics'
+OUTPUT_DIR = 'output/size_metrics_noclip'
 N_BINS = 30  # ヒストグラムのビン数 (学習スクリプトのhist.pngと同じ)
 METRICS = ['DICE', 'IoU', 'ACC', 'REC', 'PRE']
 

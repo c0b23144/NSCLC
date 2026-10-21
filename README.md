@@ -16,7 +16,8 @@
 - nsclc_large_train.py
 - nsclc_train_fold.py
   - k分割交差検証でつかう
-
+- nsclc_train_by_size3_del.py
+  - 特徴別モデルを別々に学習する。
 ### 評価
 - nsclc_size_metrics.py
   - largeとsmallの比較
@@ -27,6 +28,8 @@
     - small, large, mix, mix + small, mix + large
   - 折れ線にして表示
   - bin3の詳細棒グラフ
+- test.py  
+  - CT値の範囲の比較、画像表示、オリジナルのCT値表示(一番上)
 
 ### SegRes系のファイルについて
 3Dデータのセグメンテーション結果(TransAttUnetとの比較)  

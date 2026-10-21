@@ -35,7 +35,8 @@ CASES = [
 SAMPLES_PER_BIN = 6   # 1ビンあたり何枚見るか (ビン内の患者数がこれより少なければ全部)
 SEED = 0              # 見る患者のランダム選択。同じビンなら、どのモデルでも同じ患者が選ばれる
 CROP = 160            # 拡大表示の切り出しサイズ (512x512にリサイズした後のpx)
-OUT_DIR = 'output/seg_examples'
+OUT_DIR = 'output/seg_examples_thresh0.2'
+threshold = 0.2
 
 
 # =========================================================
@@ -174,7 +175,19 @@ def main():
                 img_t, mask_t, name, size = test_ds[i]
                 with torch.no_grad():
                     out = model(img_t.unsqueeze(0).to(device))
-                pred = (torch.sigmoid(out)[0, 0] > 0.5).cpu().numpy()
+                    prob = torch.sigmoid(out)[0, 0].cpu().numpy()
+
+                # print("prob min :", prob.min())
+                # print("prob max :", prob.max())
+                # print("prob mean:", prob.mean())
+
+                # for th in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]:
+                #     print(
+                #         f"threshold={th:.2f}, "
+                #         f"pixels={(prob > th).sum()}"
+                #     )
+
+                pred = (torch.sigmoid(out)[0, 0] > threshold).cpu().numpy()
                 gt = mask_t[0].numpy() > 0.5
                 score = compute_metrics(pred.flatten(), gt.flatten())
                 rows.append({

@@ -18,13 +18,18 @@ from TransAttUnet import UNet_Attention_Transformer_Multiscale
 # =========================================================
 IMAGES_DIR = '/workspace/NSCLC_NIfTI2/imagesTr'
 LABELS_DIR = '/workspace/NSCLC_NIfTI2/labelsTr/Neoplasm_Primary'
-SAVE_ROOT = 'checkpoints_by_size'
+SAVE_ROOT = 'checkpoints_by_size_rawct'
 
 TARGET_SIZE = (512, 512)
 BATCH_SIZE = 8
 ACCUMULATION_STEPS = 3
 NUM_EPOCHS = 250  # 全スライス使うとデータ量が増えるので、時間がかかる場合は減らす
 LR = 1e-4
+
+# 固定値の設定(全部のHU値つかう場合はコメントアウトしないでね)
+# クリップはしない
+HU_MIN = -1024
+HU_MAX = 3071
 
 # (名前, 下限, 上限)  下限 <= 腫瘍面積 < 上限
 # 一番小さい群の下限と一番大きい群の上限は開けておく(35px未満や10652px超が来ても漏れないように)
@@ -35,7 +40,7 @@ GROUPS = [
 ]
 
 # 学習する群 (ここに書いた群だけ学習する)
-TRAIN_GROUPS = ['919-1804px']
+TRAIN_GROUPS = ['1804-10652px']
 
 # 学習の初期値として読み込むpth (Noneなら最初から学習)
 # ※ 自分が使いたいpthのパスに書き換える
@@ -47,7 +52,7 @@ START_EPOCH = 0
 
 # pthから学習を再開するときの保存先フォルダ名の後ろにつける文字
 # (元のpthを上書きしないため。例: checkpoints_by_size/1804-10652px_finetune/)
-SAVE_SUFFIX = '_finetune2'
+SAVE_SUFFIX = ''
 
 # 学習データをどの面積で群分けするか
 #   'patient': 患者ごとの最大スライスの腫瘍面積で群分け (その患者の腫瘍スライスは全部同じモデルに入る)
@@ -111,8 +116,15 @@ class NSCLCSliceDataset(Dataset):
             for mask_idx in use_indices:
                 img_idx = min(int(mask_idx * z_ratio), n_slices_img - 1)
 
-                img_slice = np.clip(img_vol[:, :, img_idx], -1000, 400)
-                img_slice = (img_slice + 1000) / 1400  # 0-1に正規化
+                # img_slice = np.clip(img_vol[:, :, img_idx], -1000, 400)
+                #ここ
+                # img_slice = np.clip(img_vol[:, :, img_idx], -600, 240)
+                # img_slice = (img_slice + 1000) / 1400  # 0-1に正規化
+
+                # 固定値で正規化 全部のHU値を使って学習して比べてみるやつ
+                img_slice = img_vol[:, :, img_idx]
+                img_slice = (img_slice - HU_MIN) / (HU_MAX - HU_MIN)  # 固定値で正規化(クリップなし)
+
                 mask_slice = mask_vol[:, :, mask_idx].astype(np.float32)
 
                 img_t = torch.from_numpy(img_slice).float()[None, None]    # [1,1,H,W]
