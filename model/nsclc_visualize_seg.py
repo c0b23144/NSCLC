@@ -9,7 +9,9 @@ from sklearn.model_selection import train_test_split
 
 from TransAttUnet import UNet_Attention_Transformer_Multiscale
 # 同じフォルダに nsclc_train_by_size.py と nsclc_eval_by_size.py を置くこと
-from nsclc_train_by_size import NSCLCSliceDataset, IMAGES_DIR, LABELS_DIR, TARGET_SIZE
+from nsclc_train_by_size3_del import (
+    NSCLCSliceDataset, fix_slice_axis, IMAGES_DIR, LABELS_DIR, TARGET_SIZE, GROUPS
+)
 from nsclc_eval_by_size import WEIGHTS, N_BINS, make_bin_edges, assign_bins, load_weights, compute_metrics
 
 # =========================================================
@@ -35,9 +37,8 @@ CASES = [
 SAMPLES_PER_BIN = 6   # 1ビンあたり何枚見るか (ビン内の患者数がこれより少なければ全部)
 SEED = 0              # 見る患者のランダム選択。同じビンなら、どのモデルでも同じ患者が選ばれる
 CROP = 160            # 拡大表示の切り出しサイズ (512x512にリサイズした後のpx)
-OUT_DIR = 'output/seg_examples_thresh0.2'
-threshold = 0.2
-
+OUT_DIR = 'output/seg_examples_thresh0.3_slice'
+threshold = 0.3
 
 # =========================================================
 # 補助

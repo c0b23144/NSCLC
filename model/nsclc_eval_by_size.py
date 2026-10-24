@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split
 
 from TransAttUnet import UNet_Attention_Transformer_Multiscale
 # データ読み込み部分は学習スクリプトと同じものを使う (同じフォルダに置くこと)
-from nsclc_train_by_size import (
+from nsclc_train_by_size3_del import (
     NSCLCSliceDataset, fix_slice_axis, IMAGES_DIR, LABELS_DIR, TARGET_SIZE, GROUPS
 )
 
@@ -22,10 +22,10 @@ from nsclc_train_by_size import (
 WEIGHTS = {
     '35-919px':     'checkpoints_by_size/35-919px/best_model.pth',
     '919-1804px':   'checkpoints_by_size/919-1804px/best_model.pth',
-    '1804-10652px': 'checkpoints_by_size_rawct/1804-10652px/best_model.pth',
+    '1804-10652px': 'checkpoints_by_size/1804-10652px/best_model.pth',
 }
 
-OUTPUT_DIR = 'output/size_metrics_noclip'
+OUTPUT_DIR = 'output/size_metrics_slice'
 N_BINS = 30  # ヒストグラムのビン数 (学習スクリプトのhist.pngと同じ)
 METRICS = ['DICE', 'IoU', 'ACC', 'REC', 'PRE']
 

@@ -116,14 +116,14 @@ class NSCLCSliceDataset(Dataset):
             for mask_idx in use_indices:
                 img_idx = min(int(mask_idx * z_ratio), n_slices_img - 1)
 
-                # img_slice = np.clip(img_vol[:, :, img_idx], -1000, 400)
+                #img_slice = np.clip(img_vol[:, :, img_idx], -1000, 400)
                 #ここ
-                # img_slice = np.clip(img_vol[:, :, img_idx], -600, 240)
-                # img_slice = (img_slice + 1000) / 1400  # 0-1に正規化
+                img_slice = np.clip(img_vol[:, :, img_idx], -600, 240)
+                img_slice = (img_slice + 1000) / 1400  # 0-1に正規化
 
                 # 固定値で正規化 全部のHU値を使って学習して比べてみるやつ
-                img_slice = img_vol[:, :, img_idx]
-                img_slice = (img_slice - HU_MIN) / (HU_MAX - HU_MIN)  # 固定値で正規化(クリップなし)
+                #img_slice = img_vol[:, :, img_idx]
+                #img_slice = (img_slice - HU_MIN) / (HU_MAX - HU_MIN)  # 固定値で正規化(クリップなし)
 
                 mask_slice = mask_vol[:, :, mask_idx].astype(np.float32)
 
