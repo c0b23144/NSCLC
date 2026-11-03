@@ -28,7 +28,7 @@ SAVE_ROOT = 'checkpoints_ct'
 # 1つだけ:       ['mediastinal']
 # 3つまとめて:   ['lung', 'mediastinal', 'raw']
 # (コマンドラインで指定した場合はそちらが優先: python nsclc_train_ct.py lung)
-CT_MODES = ['lung', 'mediastinal', 'raw']
+CT_MODES = ['raw']
  
 # CT条件の定義
 #   window: ウィンドウ(level, width)の範囲外は切り捨てて 0-1 に正規化
@@ -44,7 +44,7 @@ BATCH_SIZE = 8
 ACCUMULATION_STEPS = 3
 NUM_EPOCHS = 250
 LR = 1e-4
- 
+
 # 学習の初期値として読み込むpth。キーはCT条件。無ければ最初から学習
 # 例: INIT_WEIGHTS = {'lung': 'checkpoints_ct/lung/model_epoch_250.pth'}
 INIT_WEIGHTS = {}
@@ -53,8 +53,8 @@ INIT_WEIGHTS = {}
 START_EPOCH = 0
  
 # pthから再開するときの保存先フォルダ名の後ろにつける文字 (元のpthを上書きしないため)
-SAVE_SUFFIX = '_finetune'
- 
+SAVE_SUFFIX = ''
+
  
 # =========================================================
 # CT値の変換
