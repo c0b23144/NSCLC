@@ -21,11 +21,11 @@ from nsclc_train_by_size3_del import (
 # 評価する3つのpth (自分のパスに合わせて書き換える)
 WEIGHTS = {
     '35-919px':     'checkpoints_by_size/35-919px/best_model.pth',
-    '919-1804px':   'checkpoints_by_size/919-1804px/best_model.pth',
+    '919-1804px':   '/workspace/checkpoints_rawct_mix1_919px/919-1804px/best_model.pth',
     '1804-10652px': 'checkpoints_by_size/1804-10652px/best_model.pth',
 }
 
-OUTPUT_DIR = 'output/size_metrics_slice'
+OUTPUT_DIR = 'output/size_metrics_slice_mix'
 N_BINS = 30  # ヒストグラムのビン数 (学習スクリプトのhist.pngと同じ)
 METRICS = ['DICE', 'IoU', 'ACC', 'REC', 'PRE']
 

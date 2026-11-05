@@ -18,12 +18,12 @@ from TransAttUnet import UNet_Attention_Transformer_Multiscale
 # =========================================================
 IMAGES_DIR = '/workspace/NSCLC_NIfTI2/imagesTr'
 LABELS_DIR = '/workspace/NSCLC_NIfTI2/labelsTr/Neoplasm_Primary'
-SAVE_ROOT = 'checkpoints_by_size_rawct'
+SAVE_ROOT = 'checkpoints_rawct_mix1_919px'
 
 TARGET_SIZE = (512, 512)
 BATCH_SIZE = 8
 ACCUMULATION_STEPS = 3
-NUM_EPOCHS = 250  # 全スライス使うとデータ量が増えるので、時間がかかる場合は減らす
+NUM_EPOCHS = 50  # 全スライス使うとデータ量が増えるので、時間がかかる場合は減らす
 LR = 1e-4
 
 # 固定値の設定(全部のHU値つかう場合はコメントアウトしないでね)
@@ -40,11 +40,11 @@ GROUPS = [
 ]
 
 # 学習する群 (ここに書いた群だけ学習する)
-TRAIN_GROUPS = ['1804-10652px']
+TRAIN_GROUPS = ['919-1804px']
 
 # 学習の初期値として読み込むpth (Noneなら最初から学習)
 # ※ 自分が使いたいpthのパスに書き換える
-INIT_WEIGHTS = None
+INIT_WEIGHTS = "/workspace/TransAttUnet/model/checkpoints/model_epoch_50.pth"
 
 # INIT_WEIGHTSが何エポック目まで学習済みのものか (最初から学習するなら0)
 # → START_EPOCH+1 エポック目から NUM_EPOCHS エポック目まで続きを学習する
