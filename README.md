@@ -58,3 +58,19 @@ CT画像(dcmファイル)をNIfTIに変換
 
 ### dcmmaskNif.py
 mask画像をそれぞれのindexごとに分けてNifTIにする
+
+$$
+HU_{\min} = WL - \frac{WW}{2}
+$$
+
+$$
+HU_{\max} = WL + \frac{WW}{2}
+$$
+
+\[
+HU_{\min} = WL - \frac{WW}{2}
+\]
+
+\[
+HU_{\max} = WL + \frac{WW}{2}
+\]
