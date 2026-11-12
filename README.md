@@ -30,8 +30,10 @@
   - bin3の詳細棒グラフ
 - test.py  
   - CT値の範囲の比較、画像表示、オリジナルのCT値表示(一番上)
-- nsclc_eval_ct_patient
+- nsclc_eval_ct_patient.py
   - CT値で特徴別モデルを作り、3モデルの評価。横軸をサイズから患者IDに変更
+- nsclc_low_cases.py
+  - eval_ct_patient.pyで低いところと高いところのCT値の分布確認
 
 ### SegRes系のファイルについて
 3Dデータのセグメンテーション結果(TransAttUnetとの比較)  
@@ -58,19 +60,3 @@ CT画像(dcmファイル)をNIfTIに変換
 
 ### dcmmaskNif.py
 mask画像をそれぞれのindexごとに分けてNifTIにする
-
-$$
-HU_{\min} = WL - \frac{WW}{2}
-$$
-
-$$
-HU_{\max} = WL + \frac{WW}{2}
-$$
-
-\[
-HU_{\min} = WL - \frac{WW}{2}
-\]
-
-\[
-HU_{\max} = WL + \frac{WW}{2}
-\]
