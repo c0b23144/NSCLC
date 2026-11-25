@@ -18,7 +18,7 @@ from TransAttUnet import UNet_Attention_Transformer_Multiscale
 # =========================================================
 IMAGES_DIR = '/workspace/NSCLC_NIfTI2/imagesTr'
 LABELS_DIR = '/workspace/NSCLC_NIfTI2/labelsTr/Neoplasm_Primary'
-SAVE_ROOT = 'checkpoints_by_size_3ch'
+SAVE_ROOT = 'checkpoints_by_all_size_3ch'
 
 TARGET_SIZE = (512, 512)
 BATCH_SIZE = 8
@@ -38,14 +38,25 @@ LUNG_WL, LUNG_WW = -625, 1250
 N_CHANNELS = 3
 
 # (名前, 下限, 上限)  下限 <= 腫瘍面積 < 上限
-GROUPS = [
-    ('35-919px',     0,    919),
-    ('919-1804px',   919,  1804),
-    ('1804-10652px', 1804, float('inf')),
-]
+# GROUPS = [
+#     ('35-919px',     0,    919),
+#     ('919-1804px',   919,  1804),
+#     ('1804-10652px', 1804, float('inf')),
+# ]
+
+# 腫瘍面積による2群分類
+# 下限 <= 腫瘍面積 < 上限
+# GROUPS = [
+#     ('Small', 0,    1804),
+#     ('Large', 1804, float('inf')),
+# ]
+GROUPS = [('All', 0, float('inf'))]
 
 # 学習する群 (3群すべて → モデル3つ)
-TRAIN_GROUPS = ['1804-10652px']
+#TRAIN_GROUPS = ['1804-10652px']
+# 2群それぞれでモデルを学習
+#TRAIN_GROUPS = ['Small', 'Large']
+TRAIN_GROUPS = ['All']
 
 # 学習の初期値として読み込むpth (Noneなら最初から学習)
 # ※ 入力が3chになったので、1ch時代のpthはそのままでは読み込めない
